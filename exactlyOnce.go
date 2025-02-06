@@ -4,12 +4,17 @@ import (
 	"log"
 	"fmt"
 	"time"
+	"os"
 
 	"github.com/IBM/sarama"
 )
 
 func main() {
 	brokers := []string{"kafka.sandbox.tutu.ru:9092"}
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("Error getting hostname: %v", err)
+	}
 
 	// Sarama config properties
 	cfg := sarama.NewConfig()
@@ -19,7 +24,7 @@ func main() {
 	cfg.Net.MaxOpenRequests = 1
 	cfg.Producer.Retry.Max = 5
 	cfg.Producer.Transaction.Retry.Backoff = 500 * time.Millisecond
-	cfg.Producer.Transaction.ID = "local-test-id"
+	cfg.Producer.Transaction.ID = fmt.Sprintf("transactionApp-%s", hostname)
 
 	// Create producer
 	producer, err := sarama.NewSyncProducer(brokers, cfg)
