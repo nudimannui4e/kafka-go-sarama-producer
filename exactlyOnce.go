@@ -2,55 +2,61 @@ package main
 
 import (
 	"log"
+	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 )
 
 func main() {
+	brokers := []string{"kafka.sandbox.tutu.ru:9092"}
+
 	// Sarama config properties
 	cfg := sarama.NewConfig()
 	cfg.Producer.RequiredAcks = sarama.WaitForAll // acks=all
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Idempotent = true // exactly-once
-	cfg.Net.MaxOpenRequests = 1    //
-	cfg.Producer.Retry.Max = 3
+	cfg.Net.MaxOpenRequests = 1
+	cfg.Producer.Retry.Max = 5
+	cfg.Producer.Transaction.Retry.Backoff = 500 * time.Millisecond
 	cfg.Producer.Transaction.ID = "local-test-id"
 
 	// Create producer
-	producer, err := sarama.NewSyncProducer([]string{"kafka.sandbox.tutu.ru:9092"}, cfg)
+	producer, err := sarama.NewSyncProducer(brokers, cfg)
 	if err != nil {
 		log.Fatalf("Error creating the sync producer: %v", err)
 	}
 	defer producer.Close()
 
 	// begin transaction
-	err = producer.BeginTxn()
-	if err != nil {
-		log.Fatalf("Error beginning a transaction: %v", err)
+	if err := producer.BeginTxn(); err != nil {
+		log.Fatalf("Error starting producer transaction: %v", err)
 	}
 
-	// test messages
 	topic := "exactly-once-topic"
-	key := sarama.StringEncoder("exactly-once-key")
-	value := sarama.StringEncoder("exactly-once-value")
+	messages := make([]*sarama.ProducerMessage, 0, 30)
 
-	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Key:   key,
-		Value: value,
+	for i := 0; i < 30; i++ {
+		currentTime := time.Now().Format("2006-01-02 15:04:05.000000")
+		msg := fmt.Sprintf("Message #%d - Sent at %s", i, currentTime) // message
+		producerMessage := &sarama.ProducerMessage{
+			Topic: topic,
+			Value: sarama.StringEncoder(msg),
+		}
+		messages = append(messages, producerMessage)
 	}
-	if err := producer.SendMessages([]*sarama.ProducerMessage{msg}); err != nil {
-		log.Fatalf("Error sending message: %v", err)
-		producer.AbortTxn()
-		log.Fatalf("Transaction aborted: %v", err)
+	if err := producer.SendMessages(messages); err != nil {
+		log.Printf("Error sending messages: %v", err)
+		if abortErr := producer.AbortTxn(); abortErr != nil {
+			log.Fatalf("Unsucsessfully aborting transaction: %v", abortErr)
+		}
+		return
 	}
 
+	// end transaction
 	if err := producer.CommitTxn(); err != nil {
 		log.Fatalf("Error committing transaction: %v", err)
-		producer.AbortTxn()
-		log.Fatalf("Transaction aborted: %v", err)
 	}
 
-	log.Printf("Transaction committed with exactly-once")
-
+	log.Printf("Successfully committed %d messages", len(messages))
 }
