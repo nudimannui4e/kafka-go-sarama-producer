@@ -18,6 +18,7 @@ func main() {
 
 	// Sarama config properties
 	cfg := sarama.NewConfig()
+	cfg.Version = sarama.V3_8_0_0
 	cfg.Producer.RequiredAcks = sarama.WaitForAll // acks=all
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Idempotent = true // exactly-once
