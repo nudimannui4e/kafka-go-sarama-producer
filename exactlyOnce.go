@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
 	"fmt"
-	"time"
+	"log"
 	"os"
+	"time"
 
 	"github.com/IBM/sarama"
 )

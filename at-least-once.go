@@ -1,16 +1,18 @@
 package main
 
 import (
-	"log"
+	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
-	"time"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/IBM/sarama"
 )
 
 func main() {
-	brokers := []string{"kafka.sandbox.tutu.ru:9092"}
+	brokers := []string{"kafka-700.test.sandbox.tutu.ru:9093"}
 
 	// Sarama config properties
 	cfg := sarama.NewConfig()
@@ -20,7 +22,14 @@ func main() {
 	cfg.Net.MaxOpenRequests = 1
 	cfg.Producer.Retry.Max = 5
 	cfg.Producer.Retry.Backoff = 1 * time.Second // 1sec timeout between retry
-
+	cfg.Net.SASL.Enable = true
+	cfg.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+	cfg.Net.SASL.User = "admin-broker"
+	cfg.Net.SASL.Password = "xxx"
+	cfg.Net.TLS.Enable = true
+	cfg.Net.TLS.Config = &tls.Config{InsecureSkipVerify: true}
+	cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+		return &XDGSCRAMClient{HashGeneratorFcn: sha256.New}
 
 	// Create producer
 	producer, err := sarama.NewSyncProducer(brokers, cfg)
@@ -48,27 +57,25 @@ func main() {
 
 func sendMessage(producer sarama.SyncProducer, topicName string, index int) {
 	for attempt := 0; attempt < 5; attempt++ {
-	// Формируем сообщение
+		// Формируем сообщение
 		currentTime := time.Now().Format("2006-01-02 15:04:05.00000")
 		messageText := fmt.Sprintf("Message #%d - Sent at %s", index, currentTime)
 		producerMessage := &sarama.ProducerMessage{
-		  Topic: topicName,
-		  Value: sarama.StringEncoder(messageText),
+			Topic: topicName,
+			Value: sarama.StringEncoder(messageText),
 		}
 
 		// Попытка отправить сообщение
 		partition, offset, err := producer.SendMessage(producerMessage)
 		if err != nil {
-		  log.Printf("Попытка #%d: Ошибка отправки сообщения #%d: %v", attempt+1, index, err)
-		  time.Sleep(time.Second) // Ожидание перед следующей попыткой
+			log.Printf("Попытка #%d: Ошибка отправки сообщения #%d: %v", attempt+1, index, err)
+			time.Sleep(time.Second) // Ожидание перед следующей попыткой
 		} else {
-		  // Успешная отправка
-		  log.Printf("Сообщение #%d успешно отправлено в партицию %d с оффсетом %d", index, partition, offset)
-		  return
+			// Успешная отправка
+			log.Printf("Сообщение #%d успешно отправлено в партицию %d с оффсетом %d", index, partition, offset)
+			return
 		}
 	}
 	// Если все попытки не успешны
-    log.Printf("Не удалось отправить сообщение #%d после 5 попыток", index)
+	log.Printf("Не удалось отправить сообщение #%d после 5 попыток", index)
 }
-
-
