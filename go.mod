@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/IBM/sarama v1.60.2
+	github.com/joho/godotenv v1.5.1
 	github.com/xdg-go/scram v1.2.0
 )
 
