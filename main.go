@@ -2,23 +2,22 @@ package main
 
 import (
 	"log"
-	"sync"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 
-	"kafkasaramaproducer/internal/producer"
 	"github.com/joho/godotenv"
+	"kafkasaramaproducer/internal/producer"
 )
 
 func main() {
-	if err := godotenv.Load() {
-		if err != nil {
-			log.Println("no .env file, using environment variables")
-		}
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file, using environment variables")
 	}
 
 	cfg := producer.Config{
-		Brokers: strings.Split(mustEnv("KAFKA_BROKERS"), ","),
+		Brokers:  strings.Split(mustEnv("KAFKA_BROKERS"), ","),
 		User:     mustEnv("KAFKA_USER"),
 		Password: mustEnv("KAFKA_PASSWORD"),
 		Topic:    mustEnv("KAFKA_TOPIC"),
@@ -31,7 +30,7 @@ func main() {
 	}
 	defer p.Close()
 
-	count, _ = strconv.Atoi(getEnv("KAFKA_MESSAGES_COUNT", "30"))
+	count, _ := strconv.Atoi(getEnv("KAFKA_MESSAGES_COUNT", "30"))
 
 	var wg sync.WaitGroup
 	for i := 0; i < count; i++ {
