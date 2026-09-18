@@ -28,24 +28,41 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating the sync producer: %v", err)
 	}
-	defer p.Close()
+	defer func() {
+		if err := p.Close(); err != nil {
+			log.Printf("failed to close producer: %v", err)
+		}
+	}()
 
-	countStr := getEnv("KAFKA_MESSAGES_COUNT", "30")
-	count, err := strconv.Atoi(countStr)
-	if err != nil {
-		log.Fatalf("invalid KAFKA_MESSAGES_COUNT %q: %v", countStr, err)
+	count := mustEnvInt("KAFKA_MESSAGES_COUNT", 30)
+	if count <= 0 {
+		log.Fatalf("KAFKA_MESSAGES_COUNT must be positive, got %d", count)
 	}
 
 	// отправляем в несколько потоков
+	// KAFKA_WORKERS - кол-во горутин
+	workers := mustEnvInt("KAFKA_WORKERS", 10)
+
+    jobs := make(chan int)
 	var wg sync.WaitGroup
-	for i := 0; i < count; i++ {
+
+	for worker := 0; worker < workers; worker++ {
 		wg.Add(1)
-		go func(index int) {
+
+		go func() {
 			defer wg.Done()
-			producer.SendMessage(p, cfg.Topic, index)
-		}(i)
+
+            for index := range jobs {
+				producer.SendMessage(p, cfg.Topic, index)
+			}
+		}()
 	}
+	for i := 0; i < count; i++ {
+		jobs <- i
+	}
+	close(jobs)
 	wg.Wait()
+
 	log.Println("Все сообщения отправлены")
 }
 
@@ -62,4 +79,16 @@ func getEnv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func mustEnvInt(key string, def int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return def
+	}
+	result, err := strconv.Atoi(value)
+	if err != nil {
+		log.Fatalf("invalid %s=%q: %v", key, value, err)
+	}
+	return result
 }
