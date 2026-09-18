@@ -2,18 +2,16 @@ name: Go CI
 
 on:
   push:
-    branches:
-      - master
+    branches: ["master"]
   pull_request:
-    branches:
-      - master
+    branches: ["master"]
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test and lint
+  check:
+    name: Check and test
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -35,23 +33,23 @@ jobs:
 
       - name: Check formatting
         run: |
-          UNFORMATTED="$(gofmt -l .)"
+          UNFORMATTED="$(git ls-files '*.go' | xargs -r gofmt -l)"
           if [ -n "$UNFORMATTED" ]; then
             echo "These files are not formatted:"
             echo "$UNFORMATTED"
             exit 1
           fi
 
-      - name: Vet
+      - name: Go vet
         run: go vet ./...
 
-      - name: Test
+      - name: Run tests
         run: go test -race -count=1 -v ./...
 
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
-    needs: test
+    needs: check
     timeout-minutes: 10
 
     strategy:
@@ -60,10 +58,11 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            artifact: kafka-producer-linux-amd64
+            filename: kafka-producer-linux-amd64
+
           - goos: darwin
             goarch: arm64
-            artifact: kafka-producer-darwin-arm64
+            filename: kafka-producer-darwin-arm64
 
     steps:
       - name: Checkout repository
@@ -75,7 +74,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build
+      - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -84,13 +83,13 @@ jobs:
           mkdir -p dist
           go build \
             -trimpath \
-            -o "dist/${{ matrix.artifact }}" \
+            -o "dist/${{ matrix.filename }}" \
             .
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}
+          name: ${{ matrix.filename }}
+          path: dist/${{ matrix.filename }}
           if-no-files-found: error
           retention-days: 7
