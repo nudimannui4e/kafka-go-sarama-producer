@@ -43,7 +43,7 @@ func main() {
 	// KAFKA_WORKERS - кол-во горутин
 	workers := mustEnvInt("KAFKA_WORKERS", 10)
 
-    jobs := make(chan int)
+	jobs := make(chan int)
 	var wg sync.WaitGroup
 
 	for worker := 0; worker < workers; worker++ {
@@ -52,7 +52,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-            for index := range jobs {
+			for index := range jobs {
 				producer.SendMessage(p, cfg.Topic, index)
 			}
 		}()
