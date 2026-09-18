@@ -30,8 +30,13 @@ func main() {
 	}
 	defer p.Close()
 
-	count, _ := strconv.Atoi(getEnv("KAFKA_MESSAGES_COUNT", "30"))
+	countStr := getEnv("KAFKA_MESSAGES_COUNT", "30")
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		log.Fatalf("invalid KAFKA_MESSAGES_COUNT %q: %v", countStr, err)
+	}
 
+	// отправляем в несколько потоков
 	var wg sync.WaitGroup
 	for i := 0; i < count; i++ {
 		wg.Add(1)
